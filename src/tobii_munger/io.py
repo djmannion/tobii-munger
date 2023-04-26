@@ -45,8 +45,10 @@ def _to_xarray(data: pl.DataFrame) -> dict:
     def convert_timestamps(datatype):
         timestamps_s = data.filter(predicate=pl.col("type") == datatype).select(exprs=pl.col("timestamp"))
         timestamps_s = np.squeeze(np.array(timestamps_s))
+        timestamps_us = (timestamps_s * 1e6).astype("timedelta64[us]")
         # convert this to nanoseconds for xarray
-        timestamps_ns = (timestamps_s * 1e9).astype("timedelta64[ns]")
+        #timestamps_ns = (timestamps_s * 1e9).astype("timedelta64[ns]")
+        timestamps_ns = np.around(timestamps_us / np.timedelta64(1, "ns")).astype("timedelta64[ns]")
         assert np.allclose(timestamps_ns / np.timedelta64(1, "s"), timestamps_s)
         return timestamps_ns
 
@@ -76,6 +78,13 @@ def _to_xarray(data: pl.DataFrame) -> dict:
         ),
         attrs={
             "info": "Position of gaze in the scene camera",
+        },
+    ).assign_coords(
+        coords={
+            "frame_num": (
+                "time",
+                data.filter(predicate=pl.col("type") == "gaze2d").select(pl.col("frame")).to_numpy().squeeze().astype(int),
+            )
         },
     )
 
